@@ -65,7 +65,8 @@ class Picker:
 
         side = tk.Frame(r, bg="white", padx=8, pady=4); side.grid(row=1, column=1, sticky="ns")
         head = tk.Frame(side, bg="white"); head.pack(fill="x")
-        self.fname = tk.Entry(head, font=("Menlo", 13), relief="flat", bg="#f0f1f4", state="readonly", readonlybackground="#f0f1f4")
+        self.fname = tk.Entry(head, font=("Menlo", 13), relief="flat", bg="#f0f1f4", state="readonly",
+                              readonlybackground="#f0f1f4", takefocus=0)
         self.fname.pack(side="left", fill="x", expand=True, ipady=3)
         tk.Button(head, text="Copy name", command=self.copy_name).pack(side="left", padx=(4, 0))
         tk.Label(side, text="Points (name  x  y)", bg="white", anchor="w").pack(fill="x", pady=(6, 0))
@@ -88,7 +89,8 @@ class Picker:
         if DND_FILES:
             self.cv.drop_target_register(DND_FILES)
             self.cv.dnd_bind("<<Drop>>", lambda e: [self.load(p) for p in parse_drop(e.data)[:1]])
-        typing = lambda: isinstance(r.focus_get(), tk.Entry)
+        self.editing = False          # 只有正在输入点名时才屏蔽快捷键
+        typing = lambda: self.editing
         # 不绑退出键：手一滑就关掉太伤，关窗口用红点或 cmd+W，数据本来就每次改动即时落盘
         for k, fn in {"u": self.undo, "o": self.pick, "<Escape>": lambda: self.select(None),
                       "<Delete>": self.delete, "<BackSpace>": self.delete,
@@ -96,7 +98,7 @@ class Picker:
                       "<Left>": lambda: self.step(-1), "<Right>": lambda: self.step(1),
                       "<Return>": lambda: self.name_at(None), "<space>": lambda: self.name_at(None),
                       "n": lambda: self.name_at(None)}.items():
-            r.bind(k, lambda _, fn=fn: typing() or fn())
+            r.bind_all(k, lambda _, fn=fn: typing() or fn())
         self.size = (0, 0)
         self.cv.bind("<Configure>", lambda e: self.im and (e.width, e.height) != self.size and self.fit())
         self.cv.bind("<Motion>", self.on_move)
@@ -211,6 +213,7 @@ class Picker:
     def on_left(self, e):
         """点到已标的点附近就选中它，否则复制坐标。"""
         if not self.im: return
+        self.cv.focus_set()
         x, y = to_img(e.x, e.y, self.scale)
         near = [i for i, (_, px, py) in enumerate(self.pts) if abs(px - x) * self.scale < 10 and abs(py - y) * self.scale < 10]
         if near:
@@ -228,11 +231,12 @@ class Picker:
         self.cv.delete("entry")
         ent = tk.Entry(self.cv, font=("Menlo", 14), width=18, bg="white", fg=MARK, insertbackground=MARK)
         self.cv.create_window(ex + 10, ey + 10, window=ent, anchor="nw", tags="entry")
-        ent.insert(0, preset); ent.select_range(0, "end"); ent.focus_set()
+        ent.insert(0, preset); ent.select_range(0, "end"); ent.focus_set(); self.editing = True
         self.bar.config(text=f"{'Rename' if edit is not None else 'Name for'} ({x}, {y})? Enter to confirm, Esc to cancel")
 
         def done(_=None, ok=True):
             name = ent.get().strip()
+            self.editing = False
             self.cv.delete("entry"); ent.destroy(); self.cv.focus_set()
             if ok and name:
                 if edit is not None: self.pts[edit][0] = name
