@@ -15,7 +15,7 @@ positions on CCTV frames of a wafer wet-bench, but it works on any image.
   Double-click a row (or a selected marker) to rename it.
 - **Left / Right** arrows (or the buttons) step through images in the same folder. Each image has
   its own txt, which is reloaded when you come back.
-- **Copy all** copies every row in the same tab-separated format; **cmd+C** copies the selected row
+- **Copy all** copies the image filename followed by every row in the tab-separated format; **cmd+C** copies the selected row
   if there is one, otherwise all. **Copy name** copies the current image's filename.
 - Drop an image onto the empty board, or click **+** / `o` to open one.
 

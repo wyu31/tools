@@ -183,7 +183,9 @@ class Picker:
     def copy(self, all_rows=False):
         """cmd+C：选中一行就复制那行，没选就复制全部；按钮永远复制全部。格式和 txt 一样，Tab 分隔。"""
         rows = [self.pts[self.sel]] if self.sel is not None and not all_rows else self.pts
-        text = "\n".join(f"{n}\t{x}\t{y}" for n, x, y in rows)
+        lines = [f"{n}\t{x}\t{y}" for n, x, y in rows]
+        if all_rows: lines.insert(0, os.path.basename(self.path))  # Copy all 第一行带图名
+        text = "\n".join(lines)
         self.root.clipboard_clear(); self.root.clipboard_append(text)
         self.bar.config(text=f"Copied {len(rows)} rows")
 
