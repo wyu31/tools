@@ -7,7 +7,7 @@
     与图同目录的 <图名>_coords.txt，每行 名字<TAB>x<TAB>y（右边列表就是它的内容）
 操作：
     鼠标停在点上按回车(或空格/n/右键) 命名 / 左键 选中最近的点或复制坐标
-    Delete 或「删除」钮 删选中的点 / u 撤销最后一点 / ← → 或底部按钮 换同文件夹的上下一张 / o 选图 / Esc 取消选中
+    双击列表行或选中的点 改名 / Delete 或「删除」钮 删选中的点 / u 撤销最后一点 / ← → 或底部按钮 换同文件夹的上下一张 / o 选图 / Esc 取消选中
 
 用 /opt/homebrew/bin/python3.13（brew install python-tk@3.13，Tk 9）。/usr/bin/python3 的 Tk 是 8.5.9，在新 macOS 上画布一片空白。
 拖拽要 tkinterdnd2（python3.13 -m pip install --user --break-system-packages pillow tkinterdnd2），没装就只剩 + 按钮。
@@ -64,14 +64,19 @@ class Picker:
         self.cv.grid(row=1, column=0, sticky="nsew")
 
         side = tk.Frame(r, bg="white", padx=8, pady=4); side.grid(row=1, column=1, sticky="ns")
-        tk.Label(side, text="Points (name  x  y)", bg="white", anchor="w").pack(fill="x")
+        head = tk.Frame(side, bg="white"); head.pack(fill="x")
+        self.fname = tk.Entry(head, font=("Menlo", 13), relief="flat", bg="#f0f1f4", state="readonly", readonlybackground="#f0f1f4")
+        self.fname.pack(side="left", fill="x", expand=True, ipady=3)
+        tk.Button(head, text="Copy name", command=self.copy_name).pack(side="left", padx=(4, 0))
+        tk.Label(side, text="Points (name  x  y)", bg="white", anchor="w").pack(fill="x", pady=(6, 0))
         self.lb = tk.Listbox(side, width=30, font=("Menlo", 13), activestyle="none",
                              selectbackground=SEL, selectforeground="white", exportselection=False)
         self.lb.pack(fill="both", expand=True)
         self.lb.bind("<<ListboxSelect>>", lambda _: self.select(self.lb.curselection()[0] if self.lb.curselection() else None))
+        self.lb.bind("<Double-Button-1>", lambda _: self.rename())
         tk.Button(side, text="Delete selected (Delete)", command=self.delete).pack(fill="x", pady=(6, 0))
         tk.Button(side, text="Undo last (u)", command=self.undo).pack(fill="x", pady=(4, 0))
-        tk.Button(side, text="Copy list (cmd+C)", command=self.copy).pack(fill="x", pady=(4, 0))
+        tk.Button(side, text="Copy all (cmd+C)", command=lambda: self.copy(all_rows=True)).pack(fill="x", pady=(4, 0))
 
         foot = tk.Frame(r, bg="white", pady=6); foot.grid(row=2, column=0, columnspan=2, sticky="ew")
         tk.Button(foot, text="< Prev", command=lambda: self.step(-1)).pack(side="left", padx=8)
@@ -96,6 +101,7 @@ class Picker:
         self.cv.bind("<Configure>", lambda e: self.im and (e.width, e.height) != self.size and self.fit())
         self.cv.bind("<Motion>", self.on_move)
         self.cv.bind("<Button-1>", self.on_left)
+        self.cv.bind("<Double-Button-1>", lambda e: self.sel is not None and self.rename())
         for b in ("<Button-2>", "<Button-3>", "<Control-Button-1>"): self.cv.bind(b, self.name_at)
         self.load(path) if path else self.board()
         r.lift(); r.attributes("-topmost", True); r.after(200, lambda: r.attributes("-topmost", False))
@@ -133,6 +139,7 @@ class Picker:
                 f = line.rstrip("\n").split("\t")
                 if len(f) == 3: self.pts.append([f[0], int(f[1]), int(f[2])])
         self.cv.config(cursor="crosshair")
+        self.fname.config(state="normal"); self.fname.delete(0, "end"); self.fname.insert(0, os.path.basename(path)); self.fname.config(state="readonly")
         sib = siblings(path)
         self.nav.config(text=f"{sib.index(path) + 1} / {len(sib)}   {os.path.dirname(path)}")
         self.fit()
@@ -162,9 +169,20 @@ class Picker:
         with open(self.out, "w", encoding="utf-8") as f:
             for name, x, y in self.pts: f.write(f"{name}\t{x}\t{y}\n")
 
-    def copy(self):
-        """选中一行就复制那行，没选就复制全部；格式和 txt 一样，Tab 分隔。"""
-        rows = [self.pts[self.sel]] if self.sel is not None else self.pts
+    def copy_name(self):
+        if not self.im: return
+        self.root.clipboard_clear(); self.root.clipboard_append(os.path.basename(self.path))
+        self.bar.config(text=f"Copied {os.path.basename(self.path)}")
+
+    def rename(self):
+        """双击列表行或选中的标记：在标记旁弹出预填名字的输入框。"""
+        if self.im and self.sel is not None:
+            name, x, y = self.pts[self.sel]
+            self.name_at(None, at=(x * self.scale, y * self.scale), edit=self.sel, preset=name)
+
+    def copy(self, all_rows=False):
+        """cmd+C：选中一行就复制那行，没选就复制全部；按钮永远复制全部。格式和 txt 一样，Tab 分隔。"""
+        rows = [self.pts[self.sel]] if self.sel is not None and not all_rows else self.pts
         text = "\n".join(f"{n}\t{x}\t{y}" for n, x, y in rows)
         self.root.clipboard_clear(); self.root.clipboard_append(text)
         self.bar.config(text=f"Copied {len(rows)} rows")
@@ -200,22 +218,24 @@ class Picker:
             self.root.clipboard_clear(); self.root.clipboard_append(f"{x},{y}")
             self.bar.config(text=f"Copied {x},{y}")
 
-    def name_at(self, e):
-        """输入框直接嵌在画布上，不弹新窗口。"""
+    def name_at(self, e, at=None, edit=None, preset=""):
+        """输入框直接嵌在画布上，不弹新窗口。edit 给了下标就是改名，否则新建。"""
         if not self.im: return
-        ex, ey = (e.x, e.y) if e else self.last
-        x, y = to_img(ex, ey, self.scale)
+        ex, ey = at or ((e.x, e.y) if e else self.last)
+        x, y = self.pts[edit][1:] if edit is not None else to_img(ex, ey, self.scale)
         self.cv.delete("entry")
         ent = tk.Entry(self.cv, font=("Menlo", 14), width=18, bg="white", fg=MARK, insertbackground=MARK)
         self.cv.create_window(ex + 10, ey + 10, window=ent, anchor="nw", tags="entry")
-        ent.focus_set()
-        self.bar.config(text=f"Name for ({x}, {y})? Enter to confirm, Esc to cancel")
+        ent.insert(0, preset); ent.select_range(0, "end"); ent.focus_set()
+        self.bar.config(text=f"{'Rename' if edit is not None else 'Name for'} ({x}, {y})? Enter to confirm, Esc to cancel")
 
         def done(_=None, ok=True):
             name = ent.get().strip()
             self.cv.delete("entry"); ent.destroy(); self.cv.focus_set()
             if ok and name:
-                self.pts.append([name, x, y]); self.sel = None; self.redraw()
+                if edit is not None: self.pts[edit][0] = name
+                else: self.pts.append([name, x, y]); self.sel = None
+                self.redraw()
                 self.bar.config(text=f"Saved {name} ({x},{y})   {len(self.pts)} points")
         ent.bind("<Return>", done)
         ent.bind("<Escape>", lambda _: done(ok=False))
