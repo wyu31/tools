@@ -235,16 +235,21 @@ class Picker:
         self.bar.config(text=f"{'Rename' if edit is not None else 'Name for'} ({x}, {y})? Enter to confirm, Esc to cancel")
 
         def done(_=None, ok=True):
-            name = ent.get().strip()
+            # 必须 return "break"：否则同一个回车会继续传到全局绑定，立刻又开一个命名框，
+            # editing 卡在 True，方向键等快捷键从此全被屏蔽
+            if not self.editing: return "break"
             self.editing = False
+            name = ent.get().strip()
             self.cv.delete("entry"); ent.destroy(); self.cv.focus_set()
             if ok and name:
                 if edit is not None: self.pts[edit][0] = name
                 else: self.pts.append([name, x, y]); self.sel = None
                 self.redraw()
                 self.bar.config(text=f"Saved {name} ({x},{y})   {len(self.pts)} points")
+            return "break"
         ent.bind("<Return>", done)
         ent.bind("<Escape>", lambda _: done(ok=False))
+        ent.bind("<FocusOut>", lambda _: done(ok=False))   # 点到别处就收掉，不留下卡住的输入框
 
 
 def selftest():
