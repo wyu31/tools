@@ -7,7 +7,8 @@
     与图同目录的 <图名>_coords.txt，每行 名字<TAB>x<TAB>y（右边列表就是它的内容）
 操作：
     鼠标停在点上按回车(或空格/n/右键) 命名 / 左键 选中最近的点或复制坐标
-    双击列表行或选中的点 改名 / Delete 或「删除」钮 删选中的点 / u 撤销最后一点 / ← → 或底部按钮 换同文件夹的上下一张 / o 选图 / Esc 取消选中
+    双击列表行或选中的点 改名 / 选中后方向键微调 1px（Shift 10px）/ Delete 或「删除」钮 删选中的点
+    u 撤销最后一点 / 没选中时 ← → 或底部按钮 换同文件夹的上下一张 / o 选图 / Esc 取消选中
 
 用 /opt/homebrew/bin/python3.13（brew install python-tk@3.13，Tk 9）。/usr/bin/python3 的 Tk 是 8.5.9，在新 macOS 上画布一片空白。
 拖拽要 tkinterdnd2（python3.13 -m pip install --user --break-system-packages pillow tkinterdnd2），没装就只剩 + 按钮。
@@ -95,7 +96,10 @@ class Picker:
         for k, fn in {"u": self.undo, "o": self.pick, "<Escape>": lambda: self.select(None),
                       "<Delete>": self.delete, "<BackSpace>": self.delete,
                       "<Command-c>": self.copy, "<Control-c>": self.copy,
-                      "<Left>": lambda: self.step(-1), "<Right>": lambda: self.step(1),
+                      "<Left>": lambda: self.arrow(-1, 0, -1), "<Right>": lambda: self.arrow(1, 0, 1),
+                      "<Up>": lambda: self.nudge(0, -1), "<Down>": lambda: self.nudge(0, 1),
+                      "<Shift-Left>": lambda: self.nudge(-10, 0), "<Shift-Right>": lambda: self.nudge(10, 0),
+                      "<Shift-Up>": lambda: self.nudge(0, -10), "<Shift-Down>": lambda: self.nudge(0, 10),
                       "<Return>": lambda: self.name_at(None), "<space>": lambda: self.name_at(None),
                       "n": lambda: self.name_at(None)}.items():
             r.bind_all(k, lambda _, fn=fn: typing() or fn())
@@ -122,7 +126,7 @@ class Picker:
         cv.create_text(cx, cy - 2, text="+", fill="#1d5780", font=("Menlo", 48), tags="plus")
         cv.create_text(cx, cy + 64, text="Drop an image here, or click + to open", fill="#5b6072", font=("Helvetica", 15))
         cv.tag_bind("plus", "<Button-1>", lambda _: self.pick())
-        self.bar.config(text="Enter: name point   Delete: remove selected   u: undo   Left/Right: switch image")
+        self.bar.config(text="Enter: name   Arrows: nudge selected point (Shift x10) or switch image   Delete: remove   u: undo")
 
     def pick(self):
         p = filedialog.askopenfilename(title="Open image", filetypes=[("Images", " ".join("*" + e for e in EXTS))])
@@ -171,6 +175,20 @@ class Picker:
         with open(self.out, "w", encoding="utf-8") as f:
             for name, x, y in self.pts: f.write(f"{name}\t{x}\t{y}\n")
 
+    def nudge(self, dx, dy):
+        """选中的点按像素微调；没选中就什么都不做，让方向键去翻图。"""
+        if not self.im or self.sel is None: return False
+        p = self.pts[self.sel]
+        p[1] = max(0, min(self.im.width - 1, p[1] + dx))
+        p[2] = max(0, min(self.im.height - 1, p[2] + dy))
+        self.redraw()
+        self.bar.config(text=f"Moved {p[0]} to ({p[1]},{p[2]})   Shift for 10 px, Esc to deselect")
+        return True
+
+    def arrow(self, dx, dy, page):
+        """左右键：有选中的点就微调，没有就翻上下一张图。"""
+        self.nudge(dx, dy) or self.step(page)
+
     def copy_name(self):
         if not self.im: return
         self.root.clipboard_clear(); self.root.clipboard_append(os.path.basename(self.path))
@@ -217,7 +235,7 @@ class Picker:
         x, y = to_img(e.x, e.y, self.scale)
         near = [i for i, (_, px, py) in enumerate(self.pts) if abs(px - x) * self.scale < 10 and abs(py - y) * self.scale < 10]
         if near:
-            self.select(near[0]); self.bar.config(text=f"Selected {self.pts[near[0]][0]}, press Delete to remove")
+            self.select(near[0]); self.bar.config(text=f"Selected {self.pts[near[0]][0]}: arrows nudge (Shift x10), Delete removes, Esc deselects")
         else:
             self.select(None)
             self.root.clipboard_clear(); self.root.clipboard_append(f"{x},{y}")

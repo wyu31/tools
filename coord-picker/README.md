@@ -13,7 +13,9 @@ positions on CCTV frames of a wafer wet-bench, but it works on any image.
   `<image>_coords.txt` next to the image (one `name<TAB>x<TAB>y` per line).
 - Click a marker or a list row to select it, **Delete** removes it, `u` undoes the last point.
   Double-click a row (or a selected marker) to rename it.
-- **Left / Right** arrows (or the buttons) step through images in the same folder. Each image has
+- With a point selected, the **arrow keys** nudge it by one pixel, **Shift + arrow** by ten.
+  Esc deselects.
+- With nothing selected, **Left / Right** arrows (or the buttons) step through images in the same folder. Each image has
   its own txt, which is reloaded when you come back.
 - **Copy all** copies the image filename followed by every row in the tab-separated format; **cmd+C** copies the selected row
   if there is one, otherwise all. **Copy name** copies the current image's filename.
