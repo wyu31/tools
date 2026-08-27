@@ -210,7 +210,8 @@ class Picker:
         self.bar.config(text=f"Copied {len(rows)} rows")
 
     def select(self, i):
-        self.sel = i; self.redraw()
+        # 焦点交回画布：留在列表上时，列表自己的上下键会移动选中行，抢在微调前面
+        self.sel = i; self.redraw(); self.cv.focus_set()
 
     def delete(self):
         if self.im and self.sel is not None:
