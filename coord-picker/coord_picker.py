@@ -76,8 +76,15 @@ class Picker:
         self.lb.pack(fill="both", expand=True)
         self.lb.bind("<<ListboxSelect>>", lambda _: self.select(self.lb.curselection()[0] if self.lb.curselection() else None))
         self.lb.bind("<Double-Button-1>", lambda _: self.rename())
-        for k in ("<Up>", "<Down>", "<Shift-Up>", "<Shift-Down>", "<Prior>", "<Next>", "<Home>", "<End>"):
-            self.lb.bind(k, lambda _: "break")   # 列表的内建上下键会移动选中行，和微调撞车
+        # 列表的内建上下键会移动选中行，和微调撞车。widget 级绑定比 class 级早，这里直接做微调再吃掉事件；
+        # 只写 "break" 不行，那样连 bind_all 上的微调也一起挡掉了
+        for k, fn in {"<Up>": lambda: self.nudge(0, -1), "<Down>": lambda: self.nudge(0, 1),
+                      "<Left>": lambda: self.nudge(-1, 0), "<Right>": lambda: self.nudge(1, 0),
+                      "<Shift-Up>": lambda: self.nudge(0, -10), "<Shift-Down>": lambda: self.nudge(0, 10),
+                      "<Shift-Left>": lambda: self.nudge(-10, 0), "<Shift-Right>": lambda: self.nudge(10, 0),
+                      "<Prior>": lambda: None, "<Next>": lambda: None,
+                      "<Home>": lambda: None, "<End>": lambda: None}.items():
+            self.lb.bind(k, lambda _, fn=fn: (fn(), "break")[1])
         tk.Button(side, text="Delete selected (Delete)", command=self.delete).pack(fill="x", pady=(6, 0))
         tk.Button(side, text="Undo last (u)", command=self.undo).pack(fill="x", pady=(4, 0))
         tk.Button(side, text="Copy all (cmd+C)", command=lambda: self.copy(all_rows=True)).pack(fill="x", pady=(4, 0))
