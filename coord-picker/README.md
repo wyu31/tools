@@ -14,6 +14,7 @@ positions on CCTV frames of a wafer wet-bench, but it works on any image.
 - Click a marker or a list row to select it, **Delete** removes it, `u` undoes the last point.
   Double-click a row (or a selected marker) to rename it.
 - With a point selected, the **arrow keys** nudge it by one pixel, **Shift + arrow** by ten.
+  **w** / **s** move the selection to the previous / next point, so the arrows stay free for nudging.
   Esc deselects.
 - With nothing selected, **Left / Right** arrows (or the buttons) step through images in the same folder. Each image has
   its own txt, which is reloaded when you come back.

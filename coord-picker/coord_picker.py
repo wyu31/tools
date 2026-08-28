@@ -7,7 +7,7 @@
     与图同目录的 <图名>_coords.txt，每行 名字<TAB>x<TAB>y（右边列表就是它的内容）
 操作：
     鼠标停在点上按回车(或空格/n/右键) 命名 / 左键 选中最近的点或复制坐标
-    双击列表行或选中的点 改名 / 选中后方向键微调 1px（Shift 10px）/ Delete 或「删除」钮 删选中的点
+    双击列表行或选中的点 改名 / w s 上下切换选中的点 / 选中后方向键微调 1px（Shift 10px）/ Delete 或「删除」钮 删选中的点
     u 撤销最后一点 / 没选中时 ← → 或底部按钮 换同文件夹的上下一张 / o 选图 / Esc 取消选中
 
 用 /opt/homebrew/bin/python3.13（brew install python-tk@3.13，Tk 9）。/usr/bin/python3 的 Tk 是 8.5.9，在新 macOS 上画布一片空白。
@@ -76,6 +76,8 @@ class Picker:
         self.lb.pack(fill="both", expand=True)
         self.lb.bind("<<ListboxSelect>>", lambda _: self.select(self.lb.curselection()[0] if self.lb.curselection() else None))
         self.lb.bind("<Double-Button-1>", lambda _: self.rename())
+        for k in ("<Up>", "<Down>", "<Shift-Up>", "<Shift-Down>", "<Prior>", "<Next>", "<Home>", "<End>"):
+            self.lb.bind(k, lambda _: "break")   # 列表的内建上下键会移动选中行，和微调撞车
         tk.Button(side, text="Delete selected (Delete)", command=self.delete).pack(fill="x", pady=(6, 0))
         tk.Button(side, text="Undo last (u)", command=self.undo).pack(fill="x", pady=(4, 0))
         tk.Button(side, text="Copy all (cmd+C)", command=lambda: self.copy(all_rows=True)).pack(fill="x", pady=(4, 0))
@@ -98,6 +100,7 @@ class Picker:
                       "<Command-c>": self.copy, "<Control-c>": self.copy,
                       "<Left>": lambda: self.arrow(-1, 0, -1), "<Right>": lambda: self.arrow(1, 0, 1),
                       "<Up>": lambda: self.nudge(0, -1), "<Down>": lambda: self.nudge(0, 1),
+                      "w": lambda: self.select_step(-1), "s": lambda: self.select_step(1),
                       "<Shift-Left>": lambda: self.nudge(-10, 0), "<Shift-Right>": lambda: self.nudge(10, 0),
                       "<Shift-Up>": lambda: self.nudge(0, -10), "<Shift-Down>": lambda: self.nudge(0, 10),
                       "<Return>": lambda: self.name_at(None), "<space>": lambda: self.name_at(None),
@@ -126,7 +129,7 @@ class Picker:
         cv.create_text(cx, cy - 2, text="+", fill="#1d5780", font=("Menlo", 48), tags="plus")
         cv.create_text(cx, cy + 64, text="Drop an image here, or click + to open", fill="#5b6072", font=("Helvetica", 15))
         cv.tag_bind("plus", "<Button-1>", lambda _: self.pick())
-        self.bar.config(text="Enter: name   Arrows: nudge selected point (Shift x10) or switch image   Delete: remove   u: undo")
+        self.bar.config(text="Enter: name   w/s: switch point   Arrows: nudge (Shift x10) or switch image   Delete: remove   u: undo")
 
     def pick(self):
         p = filedialog.askopenfilename(title="Open image", filetypes=[("Images", " ".join("*" + e for e in EXTS))])
@@ -209,6 +212,13 @@ class Picker:
         self.root.clipboard_clear(); self.root.clipboard_append(text)
         self.bar.config(text=f"Copied {len(rows)} rows")
 
+    def select_step(self, d):
+        """w / s 在点位之间上下切换，方向键就专心做微调。"""
+        if not self.im or not self.pts: return
+        i = (self.sel + d) % len(self.pts) if self.sel is not None else (0 if d > 0 else len(self.pts) - 1)
+        self.select(i)
+        self.bar.config(text=f"Selected {self.pts[i][0]} ({self.pts[i][1]},{self.pts[i][2]})   arrows nudge, w/s switch")
+
     def select(self, i):
         # 焦点交回画布：留在列表上时，列表自己的上下键会移动选中行，抢在微调前面
         self.sel = i; self.redraw(); self.cv.focus_set()
@@ -236,7 +246,7 @@ class Picker:
         x, y = to_img(e.x, e.y, self.scale)
         near = [i for i, (_, px, py) in enumerate(self.pts) if abs(px - x) * self.scale < 10 and abs(py - y) * self.scale < 10]
         if near:
-            self.select(near[0]); self.bar.config(text=f"Selected {self.pts[near[0]][0]}: arrows nudge (Shift x10), Delete removes, Esc deselects")
+            self.select(near[0]); self.bar.config(text=f"Selected {self.pts[near[0]][0]}: arrows nudge (Shift x10), w/s switch point, Delete removes, Esc deselects")
         else:
             self.select(None)
             self.root.clipboard_clear(); self.root.clipboard_append(f"{x},{y}")
